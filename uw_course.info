@@ -1,0 +1,8 @@
+name = UW Course
+description = This module allows users to integrate content from the UW Course Search Resource.
+core = 7.x
+package = UW Web Services Integration
+dependencies[] = field
+dependencies[] = uw_sws
+files[] = uw_course.install
+files[] = uw_course.module

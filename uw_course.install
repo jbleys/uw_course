@@ -1,0 +1,219 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the uwcourses module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function uw_course_install() {
+    drupal_flush_all_caches();
+    node_types_rebuild();
+    $types = node_type_get_types();
+    add_custom_fields();
+    node_add_body_field($types['uw_course_list']); 
+    // set persistent variable for comments to closed
+    variable_set("comment_uw_course_list", COMMENT_NODE_CLOSED);
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function uw_course_uninstall() {
+    // clean up any data created in the database or any types added when it is uninstalled
+    $node_type = 'uw_course_list';
+    $sql = 'SELECT nid FROM {node} n WHERE n.type = :type';
+    $result = db_query($sql, array(':type' => $node_type));
+    $nodeids = array();
+    foreach ($result as $row) {
+        $nodeids[] = $row->nid;
+    }
+    variable_del("comment_uw_course_list");
+    node_delete_multiple($nodeids);
+    delete_custom_fields();
+    node_type_delete($node_type);
+    field_purge_batch(500);
+}
+
+/**
+ * 
+ * @return type
+ */
+function _uw_course_installed_fields() {
+    $t = get_t();
+    return array(
+        'uw_course_curriculum_abbr' => array(
+            'field_name' => 'uw_course_curriculum_abbr',
+            'label' => $t('Curriculum Abbreviation'),
+            'type' => 'text',
+            'cardinality' => 1,
+            'settings' => array(
+                'max_length' => '6',
+                'size' => '10',
+                )
+        ),
+        'uw_course_quarter' => array(
+            'field_name' => 'uw_course_quarter',
+            'label' => $t('Quarter'),
+            'type' => 'list_text',
+            'cardinality' => 1,
+            'settings' => array(
+                'allowed_values' => array(
+                    'autumn'=>'autumn',
+                    'winter'=>'winter',
+                    'spring'=>'spring',
+                    'summer'=>'summer',
+                    ),
+                'allowed_values_function' => '',
+              ),
+        ),
+        'uw_course_year' => array(
+            'field_name' => 'uw_course_year',
+            'label' => $t('Year'),
+            'type' => 'text',
+            'cardinality' => 1,
+            'settings' => array(
+                'max_length' => '4',
+                'size' => '10',
+                ),
+        ),
+//        'uw_course_page_size' => array(
+//            'field_name' => 'uw_course_page_size',
+//            'label' => $t('Page size'),
+//            'type' => 'text',
+//            'cardinality' => 1,
+//        )
+    );
+}
+
+/**
+ * 
+ * @return type
+ */
+function _uw_course_installed_instances() {
+    $t = get_t();
+    return array(
+        'uw_course_curriculum_abbr' => array(
+            'field_name' => 'uw_course_curriculum_abbr',
+            'type' => 'text',
+            'label' => $t('Curriculum Abbreviation'),
+            'description' => $t('The curriculum abbreviation attribute identifies the department through which the course is offered; for example, "ENGL" is English and "CSE" is Computer Science and Engineering. Sometimes curriculum abbreviation is referred to as department code.<br>To be valid, a curriculum abbreviation must be between 2 and 6 alphabetic characters.<br>Only two special characters are permitted, the ampersand ("&") and a space; for example, "N&MES" is Near and Middle Eastern Studies, "B STR" is Biological Structure.<br>A complete overview of available course descriptions (and their abbreviation) can be found at ' . l('University of Washington Course Descriptions', 'http://www.washington.edu/students/crscat/', array('attributes'=>array('target'=>'_blank',)))),
+            'required' => 1,
+            'widget' => array(
+                'type' => 'text_textfield',
+                'settings' => array(
+                    'max_length' => '6',
+                    'size' => '10',
+                    )
+            ),
+            'display' => array(
+                'default' => array(
+                    'label' => 'inline',
+                    'settings' => array(
+                        'type' => 'text_default',
+                    ),
+                ),
+                'teaser' => array(),
+            ),
+        ),
+        'uw_course_quarter' => array(
+            'field_name' => 'uw_course_quarter',
+            'type' => 'list_text',
+            'label' => $t('Quarter'),
+            'description' => $t('Quarter is a character field with one of the following values: winter, spring, summer, or autumn. If you are using the form, only those choices will be available in the selection box.'),
+            'required' => 1,
+            'widget' => array(
+                'type' => 'options_select',
+                'settings' => array(
+                    'allowed_values' => array(
+                        'autumn'=>'autumn',
+                        'winter'=>'winter',
+                        'spring'=>'spring',
+                        'summer'=>'summer',
+                        ),
+                    'allowed_values_function' => '',
+                  ),
+            ),
+            'display' => array(
+                'default' => array(
+                    'label' => 'inline',
+                    'settings' => array(
+                        'type' => 'list_text',
+                    ),
+                )
+            )
+        ),
+        'uw_course_year' => array(
+            'field_name' => 'uw_course_year',
+            'type' => 'text',
+            'label' => $t('Year'),
+            'description' => $t('Year is a 4-digit number between 1900 and 9999.'),
+            'required' => 1,
+            'widget' => array(
+                'type' => 'text_textfield',
+                'settings' => array(
+                    'max_length' => '4',
+                    'size' => '10',
+                    ),
+            ),
+            'display' => array(
+                'default' => array(
+                    'label' => 'inline',
+                    'settings' => array(
+                        'type' => 'text_default',
+                    ),
+                )
+            )
+        ),
+//        'uw_course_page_size' => array(
+//            'field_name' => 'uw_course_page_size',
+//            'type' => 'text',
+//            'label' => $t('Page size'),
+//            'description' => $t('Determines the number of results that ca be returned. Leave blank for the maximum number (500) to be returned.'),
+//            'widget' => array(
+//                'type' => 'text_textfield'
+//            ),
+//            'settings' => array(
+//                'max_length' => 3,
+//                ),
+//            'display' => array(
+//                'example_node_list' => array(
+//                    'label' => $t('Page size'),
+//                    'type' => 'text'
+//                )
+//            )
+//        )
+            
+    );
+}
+
+/**
+ * 
+ * @see uw_sws_course_install()
+ */
+function add_custom_fields() {
+    foreach (_uw_course_installed_fields() as $field) {
+        field_create_field($field);
+    }
+    foreach (_uw_course_installed_instances() as $fieldinstance) {
+        $fieldinstance['entity_type'] = 'node';
+        $fieldinstance['bundle'] = 'uw_course_list';
+        field_create_instance($fieldinstance);
+    }
+}
+
+/**
+ * 
+ * @see uw_sws_course_uninstall()
+ */
+function delete_custom_fields() {
+    foreach (array_keys(_uw_course_installed_fields()) as $field) {
+        field_delete_field($field);
+    }
+    $instances = field_info_instances('node', 'uw_course_list');
+    foreach ($instances as $instance_name => $fieldinstance) {
+        field_delete_instance($fieldinstance);
+    }
+}
