@@ -20,10 +20,11 @@ function uw_course_help($path, $arg) {
     switch ($path) {
         case "admin/help#uw_course":
             $output .= '<h3>' . t('About UW Courses') . '</h3>';
-            $output .= '<p>' . t("This module creates a content type \"UW Course List\".") . '</p>';
-            $output .= '<p>' . t("The Fields are created based on the Course_search attributes as described on ");
-            $output .= l('UW SWS Course Search Resource V4', 'https://wiki.cac.washington.edu/display/SWS/Course+Search+Resource+V4', array('attributes'=>array('target'=>'_blank',)));
-            $output .= ', and are used as search criteria to create the course list.</p>';
+            $output .= '<p>' . t("This module creates a content types \"UW Course List\" and  \"UW Custom Course List\".") . '<br />';
+            $output .= t("Based on input criteria a node will fetch data (like course titles and course descriptions) from UW SWS.") . '</p>';
+            //$output .= '<p>' . t("The Fields are created based on the Course_search attributes as described on ");
+            $output .= l('UW SWS Course Search Resource V'.variable_get('uw_sws_version'), 'https://wiki.cac.washington.edu/display/SWS/Course+Search+Resource+V'.variable_get('uw_sws_version'), array('attributes'=>array('target'=>'_blank',)));
+            //$output .= ', and are used as search criteria to create the course list.</p>';
             break;
     }
     return $output;
@@ -35,21 +36,11 @@ function uw_course_help($path, $arg) {
 * The name of this hook is a bit misleading, as it does far more than simply assign menu items. 
 * Using this hook, modules register paths to define how URL requests are handled.
 */
-function uw_course_menu() {
-    //$account = ($account == NULL) ? menu_get_object('user') : $account;
-    $items = array();
-
-    // path to test page
-//    $items['uw_course'] = array(
-//        'title' => 'UW Courses test devel',
-//        'page callback' => '_uw_course_testpage',
-//        'access callback' => TRUE,
-//        'access argument' => array('access nodes'),
-//        'type' => MENU_NORMAL_ITEM,
-//    );
-
-  return $items;
-}
+//function uw_course_menu() {
+//    $items = array();
+//
+//  return $items;
+//}
 
 /**
  * Implements hook_node_info()
@@ -62,14 +53,22 @@ function uw_course_node_info() {
         'uw_course_list' => array(
             'name' => t('UW Course List'),
             'base' => 'uw_course_list',
-            'description' => t('Use this content type to retrieve a UW SWS Course List page.'),
+            'description' => t('Use this content type to retrieve a specific Curriculum Course List from UW SWS.'),
             'has_title' => TRUE,
             'title_label' => t('UW Course List title'),
             'locked' => TRUE,
             // attributes below are not set through this hook, see uw_course_install()
             //'comment' => COMMENT_NODE_CLOSED,
             //'promote' => NODE_NOT_PROMOTED,
-         )
+         ),
+        'uw_custom_course_list' => array(
+            'name' => t('UW Custom Course List'),
+            'base' => 'uw_custom_course_list',
+            'description' => t('Use this content type to retrieve a Custom Course List from UW SWS.'),
+            'has_title' => TRUE,
+            'title_label' => t('UW Custom Course List title'),
+            'locked' => TRUE,
+         ),
     );
 }
 
@@ -80,6 +79,9 @@ function uw_course_node_info() {
  * 
  */
 function uw_course_list_form($node, $form_state) {
+    return node_content_form($node, $form_state);
+}
+function uw_custom_course_list_form($node, $form_state) {
     return node_content_form($node, $form_state);
 }
 
@@ -104,61 +106,15 @@ function uw_course_form_uw_course_list_node_form_alter(&$form, &$form_state, $fo
     // disable body field because we will render the content into it
     $form['body']['#access'] = FALSE;
 }
+function uw_course_form_uw_custom_course_list_node_form_alter(&$form, &$form_state, $form_id) {    
+    // disable body field because we will render the content into it
+    $form['body']['#access'] = FALSE;
+    $form['#validate'][] = '_uw_course_form_uw_custom_course_list_validate';
+}
 
-/**
- * Helper function.
- * Initiates a cURL request or retrieves cached data based on url
- * 
- * @staticvar type $my_data
- * @param type $url
- * @return type
- * @throws Exception
- */
-function _uw_course_get_curl($url) {
-    try {
-        static $my_data;
-        $cache_key = $url;
-        $bin = 'cache';
-        $cache = cache_get($cache_key, $bin);
-        
-        if ($cache) {
-            // get cached data
-            //drupal_set_message('Getting cached data' , 'status');
-            $my_data = unserialize($cache->data);
-        } else {
-            // Do expensive calculations here, and populate $my_data
-            //drupal_set_message('Connecting to server "' . variable_get('uw_ws_domain') . '"' , 'status');
-            $curl = curl_init();
-            curl_setopt_array($curl, array(
-                CURLOPT_RETURNTRANSFER => TRUE,
-                CURLOPT_URL => $url,
-            ));
-            $response = curl_exec($curl);
-            $http_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            $info = curl_getinfo($curl);
-            curl_close($curl);
+function _uw_course_form_uw_custom_course_list_validate () {
+    //form_set_error('test', 'henkie');
 
-            // load the HTTP codes
-            $http_codes = parse_ini_file(variable_get('uw_sws_http_status_file'));
-
-            if ($http_status === 200) {
-                $response = json_decode($response);
-                $my_data = $response;
-                //drupal_set_message($http_status . ': ' . $http_codes[$info['http_code']], 'status');
-            } else {
-                //drupal_set_message($http_status . ': ' . $http_codes[$info['http_code']], 'warning');
-                throw new Exception($http_codes[$info['http_code']], $http_status);
-            }
-              
-            // populate cache  
-            cache_set($cache_key,  serialize($my_data), $bin);
-          }
-        
-        return $my_data;
-        
-    } catch (Exception $exc) {
-        drupal_set_message($exc->getMessage(), 'error');
-    }
 }
 
 /**
@@ -192,24 +148,26 @@ function _uw_course_get_curl($url) {
  * 
  * @todo optimize args array
  * @todo implement paging
+ * 
+ * @see https://wiki.cac.washington.edu/display/SWS/Attribute+Glossary for attibutes.
 */
-function uw_course_node_view($node, $view_mode, $langcode, $reset = FALSE) { 
+function uw_course_node_view($node, $view_mode, $langcode) { 
+    
+    $url = variable_get('uw_ws_domain') . variable_get('uw_sws_public_course');
+    if (!$url) { return drupal_set_message("Path to UW SWS not set.", "warning"); }  
+    $markup = '';
     
     if ($node->type == 'uw_course_list') {
-          
-        $url = variable_get('uw_ws_domain') . variable_get('uw_sws_v4_public_course');
-        if (!$url) { return drupal_set_message("Path to UW SWS not set.", "warning"); }   
-
         // get the values from the fields
         // trim, and replace space and ampersand
-        $curriculum_abbreviation = trim(str_replace(array(' ', '&'), array('+', '%26'), $node->uw_course_curriculum_abbr[LANGUAGE_NONE][0]['value']));
+        $curriculum_abbreviation = _uw_course_format_abbr($node->uw_course_curriculum_abbr[LANGUAGE_NONE][0]['value']);
         $quarter = $node->uw_course_quarter[LANGUAGE_NONE][0]['value'];
         $year = $node->uw_course_year[LANGUAGE_NONE][0]['value'];
         // field page_size is disabled until a paging method is implemented
         // for now return all the results based on maximum setting 500
         //$page_size = $node->uw_course_page_size[LANGUAGE_NONE][0]['value'];
         $page_size = ($page_size == '') ? 500 : $page_size;
-
+        
         $args = array(
             'curriculum_abbreviation' => $curriculum_abbreviation,
             'quarter' => $quarter,
@@ -224,33 +182,112 @@ function uw_course_node_view($node, $view_mode, $langcode, $reset = FALSE) {
             $attributes .= $key . '=' . $value;
             ($terms) ? $attributes .= '&' : '' ;
         }
+        // construct complete url
         $url = $url . '.json?' . $attributes;
-        $response = _uw_course_get_curl($url);
-
-        $markup .= '<div class="uw-courses">';
-        foreach($response->Courses as $obj){
-            $course = _uw_course_get_curl(variable_get('uw_ws_domain') . $obj->Href);
-            //$htmlLink = variable_get('uw_ws_domain') . str_replace('.json','.xhtml',stripslashes($obj->Href));
-            $markup .= '<div class="uw-course">';
-            $markup .= '<h3>' . $obj->CurriculumAbbreviation . ' ' . $obj->CourseNumber . ' &ndash; ' . $obj->CourseTitle . '</h3>';
-            //$markup .= '<h3><a href="' . $htmlLink . '" target="_blank">' . $obj->CurriculumAbbreviation . ' ' . $obj->CourseNumber . ' &ndash; ' . $obj->CourseTitle . '</a></h3>';
-            $markup .= '<div class="uw-course-title-long"><em>' . $obj->CourseTitleLong . '</em></div>';
-            $markup .= '<div class="uw-course-description">' . $course->CourseDescription . '</div>';
-            //$markup .= '<div class="course-credit">Credit: ' . $course->CreditControl . '</div>';
-            $markup .= '<div class="uw-course-college">College: ' . $course->CourseCollege . '</div>';
-            $markup .= '<div class="uw-course-campus">Campus: ' . $course->CourseCampus . '</div>';
-            $markup .= '</div>';
-        }
-        $markup .= '</div>';
-        if ($response->TotalCount) { $markup = '<div id="resultStats">' . $response->TotalCount . ' courses found</div>' . $markup; }
-    
-        // workaround for empty $body: create empty p element and save node to trigger body value
-        if (empty($node->body)) {
-            $node->body[LANGUAGE_NONE][0]['value'] = '<p />';
-            node_save($node);
-        }
-        $body = $node->body[LANGUAGE_NONE][0]['value'];
+        // get the response
+        $response = _uw_sws_get_curl($url);
         
-        $node->content['body'][0]['#markup'] = $body . $markup;
+        if (is_object($response) && is_array($response->Courses)) {
+            foreach($response->Courses as $obj){
+                // markup the response
+                $markup = _uw_course_markup_response($obj, $markup);
+            }
+        }
+        //add total count above courses
+        if ($response->TotalCount) { $markup = '<div id="resultStats">' . $response->TotalCount . ' courses found</div>' . $markup; }           
     }
+    
+    if ($node->type == 'uw_custom_course_list') {
+        // get value from Custom Course field
+        $my_courses = trim($node->uw_course_custom[LANGUAGE_NONE][0]['value']);
+        
+        if (!empty($my_courses)) {           
+            // create values array based on line bresk character
+            $arr_courses = explode("\n", $my_courses);
+            // loop all items
+            foreach ($arr_courses as $course_item) {
+                // create array for curriculum and course number based on pipe character
+                $arr_course = explode("|", $course_item);
+
+                // IMPORTANT remove line feed and carriage return before construction url attributes    
+                $curriculum_abbreviation = _uw_course_format_abbr($arr_course[0]);
+                $course_number = preg_replace( "/\r|\n/", "", $arr_course[1]);
+                $page_size = 500;
+                $args = array(
+                    'curriculum_abbreviation' => $curriculum_abbreviation,
+                    'course_number' => $course_number,
+                    'page_size' => ($course_number) ? '' : $page_size,
+                );
+
+                // create the querystring
+                $terms = count($args);
+                foreach ($args as $key => $value) {
+                    $terms--;
+                    $attributes .= $key . '=' . $value;
+                    ($terms) ? $attributes .= '&' : '' ;
+                }
+                // construct complete url
+                $get_url = $url . '.json?' . $attributes;
+                // get the response
+                $response = _uw_sws_get_curl($get_url);
+                if (is_object($response) && is_array($response->Courses)) {
+                    foreach($response->Courses as $obj){
+                        // markup the response
+                        $markup = _uw_course_markup_response($obj, $markup);
+                    }
+                }
+                $attributes = '';
+                $get_url = '';
+            }
+        }
+        
+    }
+    
+    //add container
+    $markup = '<div class="uw-courses">' . $markup . '</div>';
+    
+    // workaround for empty $body: create empty p element and save node to trigger body value
+//    if (empty($node->body)) {
+//        $node->body[LANGUAGE_NONE][0]['value'] = '';
+//        node_save($node);
+//    }
+    $body = $node->body[LANGUAGE_NONE][0]['value'];
+
+    $node->content['body'][0]['#markup'] = $body . $markup;
+    
+    
+}
+/**
+ * 
+ * @param type $course_abbr
+ * @return type
+ */
+function _uw_course_format_abbr ($course_abbr) {
+    $course_abbr = strtoupper(str_replace(array(' ', '&'), array('+', '%26'), trim(preg_replace( "/\r|\n/", "", $course_abbr))));
+    return $course_abbr;
+}
+
+/**
+ * 
+ * @param type $obj
+ * @param type $markup
+ * @return string
+ */
+function _uw_course_markup_response ($obj, &$markup){
+    
+    $course = _uw_sws_get_curl(variable_get('uw_ws_domain') . $obj->Href);
+    //$htmlLink = variable_get('uw_ws_domain') . str_replace('.json','.xhtml',stripslashes($obj->Href));
+    $markup .= '<div class="uw-course">';
+    $markup .= '<h3>' . $obj->CurriculumAbbreviation . ' ' . $obj->CourseNumber . ' &ndash; ' . $obj->CourseTitle . '</h3>';
+    //$markup .= '<h3><a href="' . $htmlLink . '" target="_blank">' . $obj->CurriculumAbbreviation . ' ' . $obj->CourseNumber . ' &ndash; ' . $obj->CourseTitle . '</a></h3>';
+    $markup .= '<div class="uw-course-title-long"><em>' . $obj->CourseTitleLong . '</em></div>';
+    $markup .= '<div class="uw-course-description">' . $course->CourseDescription . '</div>';
+    //$markup .= '<div class="course-credit">Credit: ' . $course->CreditControl . '</div>';
+    $markup .= '<div class="uw-course-college">College: ' . $course->CourseCollege . '</div>';
+    $markup .= '<div class="uw-course-campus">Campus: ' . $course->CourseCampus . '</div>';
+    $markup .= '<div class="uw-course-quarter">Quarter: ' . $course->Curriculum->Quarter . '</div>';
+    $markup .= '<div class="uw-course-year">Year: ' . $course->Curriculum->Year . '</div>';
+    $markup .= '</div>';
+    
+    return $markup;
 }
