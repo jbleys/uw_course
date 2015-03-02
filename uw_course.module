@@ -23,7 +23,7 @@ function uw_course_help($path, $arg) {
             $output .= '<p>' . t("This module creates a content types \"UW Course List\" and  \"UW Custom Course List\".") . '<br />';
             $output .= t("Based on input criteria a node will fetch data (like course titles and course descriptions) from UW SWS.") . '</p>';
             //$output .= '<p>' . t("The Fields are created based on the Course_search attributes as described on ");
-            $output .= l('UW SWS Course Search Resource V4', 'https://wiki.cac.washington.edu/display/SWS/Course+Search+Resource+V4', array('attributes'=>array('target'=>'_blank',)));
+            $output .= l('UW SWS Course Search Resource V'.variable_get('uw_sws_version'), 'https://wiki.cac.washington.edu/display/SWS/Course+Search+Resource+V'.variable_get('uw_sws_version'), array('attributes'=>array('target'=>'_blank',)));
             //$output .= ', and are used as search criteria to create the course list.</p>';
             break;
     }
@@ -148,10 +148,12 @@ function _uw_course_form_uw_custom_course_list_validate () {
  * 
  * @todo optimize args array
  * @todo implement paging
+ * 
+ * @see https://wiki.cac.washington.edu/display/SWS/Attribute+Glossary for attibutes.
 */
 function uw_course_node_view($node, $view_mode, $langcode) { 
     
-    $url = variable_get('uw_ws_domain') . variable_get('uw_sws_v4_public_course');
+    $url = variable_get('uw_ws_domain') . variable_get('uw_sws_public_course');
     if (!$url) { return drupal_set_message("Path to UW SWS not set.", "warning"); }  
     $markup = '';
     
